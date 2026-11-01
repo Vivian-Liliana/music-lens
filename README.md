@@ -23,9 +23,13 @@ music-lens analyze song.mp3
 ```powershell
 $node = "C:\Users\86173\Documents\deepseek-harness\default-workspace\snowluma\SnowLuma-v2.2.1\node.exe"
 & $node .\bin\music-lens.mjs doctor                       # 体检：python / 依赖 / 模型
+& $node .\bin\music-lens.mjs spectrogram "song.mp3"       # 10 秒出图，只要 ffmpeg
 & $node .\bin\music-lens.mjs separate "song.mp3"          # 分轨
 & $node .\bin\music-lens.mjs analyze "song.mp3" --model medium
 ```
+
+`spectrogram` 是**零依赖**的快速预览：频谱图 + 波形图，不装 Python、不下模型，
+只要机器上有 ffmpeg（`MUSIC_LENS_FFMPEG` 可指定路径）。
 
 `setup` 会自己装 python 依赖并从 hf-mirror 下模型，**默认只下 small（461 MB）**：
 

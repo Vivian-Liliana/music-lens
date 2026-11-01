@@ -77,6 +77,22 @@ function findPython() {
   return null
 }
 
+// ffmpeg is optional: only the zero-dependency `spectrogram` command needs it.
+function findFfmpeg() {
+  const cands = []
+  if (process.env.MUSIC_LENS_FFMPEG) cands.push(process.env.MUSIC_LENS_FFMPEG)
+  cands.push('ffmpeg')
+  if (process.platform === 'win32') {
+    cands.push(path.join(os.homedir(), '.dsh', 'bili-whale', 'bin', 'ffmpeg.exe'))
+    cands.push('C:\\ffmpeg\\bin\\ffmpeg.exe')
+  }
+  for (const c of cands) {
+    const r = spawnSync(c, ['-version'], { encoding: 'utf8' })
+    if (r.status === 0) return c
+  }
+  return null
+}
+
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { stdio: 'inherit', env: { ...process.env, ...(opts.env || {}) } })
   return r.status ?? 1
@@ -221,6 +237,44 @@ async function cmdAnalyze(args) {
   return run(py, argv)
 }
 
+/**
+ * Zero-dependency quick look: needs only ffmpeg, no python, no models.
+ * Produces a mel-ish spectrogram and a waveform picture.
+ */
+async function cmdSpectrogram(args) {
+  const audio = args._[0]
+  if (!audio) die('usage: music-lens spectrogram <audio> [--out DIR] [--size 1600x900]')
+  const src = path.resolve(audio)
+  if (!fs.existsSync(src)) die(`audio not found: ${src}`)
+
+  const ff = findFfmpeg()
+  if (!ff) {
+    die('ffmpeg not found.\n  install:  winget install Gyan.FFmpeg\n  or set:   MUSIC_LENS_FFMPEG=C:\\path\\to\\ffmpeg.exe')
+  }
+
+  const outDir = path.resolve(args.out || path.join(path.dirname(src), path.parse(src).name + '_look'))
+  fs.mkdirSync(outDir, { recursive: true })
+  const size = args.size || '1600x900'
+
+  log(`ffmpeg  : ${ff}`)
+  log(`output  : ${outDir}`)
+
+  const spec = path.join(outDir, 'spectrum.png')
+  const wave = path.join(outDir, 'waveform.png')
+
+  const st1 = run(ff, ['-y', '-hide_banner', '-loglevel', 'error', '-i', src,
+    '-lavfi', `showspectrumpic=s=${size}:legend=1:scale=log`, '-frames:v', '1', spec])
+  log(`  spectrum: ${st1 === 0 ? spec : 'FAILED'}`)
+
+  const st2 = run(ff, ['-y', '-hide_banner', '-loglevel', 'error', '-i', src,
+    '-lavfi', `showwavespic=s=${size}:split_channels=0:colors=#4a7ebb`, '-frames:v', '1', wave])
+  log(`  waveform: ${st2 === 0 ? wave : 'FAILED'}`)
+
+  if (st1 !== 0 && st2 !== 0) return 1
+  log('\nquick look done. for lyrics / key / tempo / numbers, run:  music-lens analyze "<same file>"')
+  return 0
+}
+
 async function cmdSeparate(args) {
   const audio = args._[0]
   if (!audio) die('usage: music-lens separate <audio> [--out DIR]')
@@ -242,6 +296,8 @@ function usage() {
               [--model medium]             small | medium | large-v3 | path
               [--lang auto]                language code or auto
               [--out DIR]                  output directory
+  music-lens spectrogram <audio>           quick look: spectrum + waveform (ffmpeg only,
+              [--size 1600x900]            no python, no models, ~10 seconds)
   music-lens separate <audio>              split vocals / instrumental (demucs)
 
 Outputs per song: 00_summary.md, 01_lyrics.txt, 02_transcript.json,
@@ -257,6 +313,7 @@ const map = {
   setup: cmdSetup,
   analyze: cmdAnalyze,
   separate: cmdSeparate,
+  spectrogram: cmdSpectrogram,
  }
 
 if (cmd === 'help' || cmd === '--help' || cmd === '-h') { usage(); process.exit(0) }
