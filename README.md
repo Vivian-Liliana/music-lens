@@ -115,6 +115,9 @@ $base = "C:\Users\86173\Documents\deepseek-harness\default-workspace\music-lens"
 4. **`initial_prompt` 会被复述成歌词**（模型对着音乐段"念提示词"），所以不要传提示词。
 5. **`--lang zh` 会把英文歌硬翻成中文**，出乱码。默认改成了 `auto`。
 6. VAD 在音乐上会把人声整段滤掉，所以默认关闭（语音场景再加 `--vad`）。
+7. **Windows 上 npm 生成的 `music-lens.ps1` 会被执行策略拦住**，敲 `music-lens` 直接报
+   `禁止运行脚本`。两个办法：删掉那个 `.ps1`（PowerShell 会回落到 `.cmd`），或者
+   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。**每次 `npm i -g` 之后都要处理一次。**
 
 ## 还能往上走
 
