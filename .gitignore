@@ -11,6 +11,9 @@ out/
 *.flac
 *.m4a
 
+# packed artifacts
+*.tgz
+
 # local env
 .env
 .env.*
