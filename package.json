@@ -1,6 +1,6 @@
 {
   "name": "music-lens",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Let a text-only model read a song: lyrics + timestamps, loudness, brightness, key, tempo, sections. Local, no API keys.",
   "type": "module",
   "bin": {
