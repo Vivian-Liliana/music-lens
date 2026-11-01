@@ -23,5 +23,14 @@
     "audio",
     "dsh"
   ],
+  "author": "Vivian-Liliana",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vivian-Liliana/music-lens.git"
+  },
+  "homepage": "https://github.com/Vivian-Liliana/music-lens#readme",
+  "bugs": {
+    "url": "https://github.com/Vivian-Liliana/music-lens/issues"
+  },
   "license": "MIT"
 }
