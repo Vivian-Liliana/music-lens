@@ -1,0 +1,27 @@
+{
+  "name": "music-lens",
+  "version": "0.1.0",
+  "description": "Let a text-only model read a song: lyrics + timestamps, loudness, brightness, key, tempo, sections. Local, no API keys.",
+  "type": "module",
+  "bin": {
+    "music-lens": "bin/music-lens.mjs"
+  },
+  "files": [
+    "bin",
+    "scripts",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "whisper",
+    "demucs",
+    "lyrics",
+    "asr",
+    "mir",
+    "audio",
+    "dsh"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,16 @@
+# dependencies
+node_modules/
+
+# models (1.5 GB+, downloaded by `music-lens setup`)
+models/
+
+# analysis output
+out/
+*.wav
+*.mp3
+*.flac
+*.m4a
+
+# local env
+.env
+.env.*
