@@ -57,13 +57,15 @@ function parseArgs(argv) {
 function candidates() {
   const list = []
   if (process.env.MUSIC_LENS_PYTHON) list.push(process.env.MUSIC_LENS_PYTHON)
-  const la = process.env.LOCALAPPDATA
-  if (la) {
-    for (const v of ['313', '312', '311']) {
-      list.push(path.join(la, 'Programs', 'Python', `Python${v}`, 'python.exe'))
+  if (process.platform === 'win32') {
+    const la = process.env.LOCALAPPDATA
+    if (la) {
+      for (const v of ['313', '312', '311']) {
+        list.push(path.join(la, 'Programs', 'Python', `Python${v}`, 'python.exe'))
+      }
     }
   }
-  list.push('python', 'python3')
+  list.push('python3.12', 'python3', 'python')
   return list
 }
 
@@ -135,8 +137,8 @@ function cmdDoctor() {
   const py = findPython()
   if (!py) {
     log('python          : MISSING')
-    log('  install:  winget install --id Python.Python.3.12 --scope user')
-    log('  or set MUSIC_LENS_PYTHON=C:\\path\\to\\python.exe')
+    log(`  install:  ${pythonInstallCommand().manual}`)
+    log('  or set MUSIC_LENS_PYTHON=/path/to/python')
   } else {
     const v = capture(py, ['-c', 'import sys;print(sys.version.split()[0])']).out.trim()
     log(`python          : ${py}  (${v})`)
@@ -151,16 +153,38 @@ function cmdDoctor() {
   return 0
 }
 
+function pythonInstallCommand() {
+  if (process.platform === 'win32') {
+    return {
+      cmd: 'winget',
+      args: ['install', '--id', 'Python.Python.3.12', '-e', '--scope', 'user',
+        '--accept-package-agreements', '--accept-source-agreements'],
+      manual: 'winget install --id Python.Python.3.12 -e --scope user',
+    }
+  }
+  if (process.platform === 'darwin') {
+    return { cmd: 'brew', args: ['install', 'python@3.12'], manual: 'brew install python@3.12' }
+  }
+  return {
+    cmd: 'sudo',
+    args: ['apt-get', 'install', '-y', 'python3', 'python3-pip', 'python3-venv'],
+    manual: 'sudo apt-get install -y python3 python3-pip python3-venv',
+  }
+}
+
 async function cmdSetup(args) {
   const py = findPython()
   let use = py
   if (!use) {
-    log('python not found -- trying winget (per-user install)')
-    const st = run('winget', ['install', '--id', 'Python.Python.3.12', '-e', '--scope', 'user',
-      '--accept-package-agreements', '--accept-source-agreements'])
-    if (st !== 0) die('python install failed; install it manually then re-run `music-lens setup`')
+    const inst = pythonInstallCommand()
+    log(`python not found -- trying ${inst.cmd}`)
+    let st = 1
+    try { st = run(inst.cmd, inst.args) } catch { st = 1 }
+    if (st !== 0) {
+      die(`could not install python automatically.\n  run manually:  ${inst.manual}\n  then re-run:   music-lens setup\n  (or point MUSIC_LENS_PYTHON at an existing python 3.9+)`)
+    }
     use = findPython()
-    if (!use) die('python installed but still not found; set MUSIC_LENS_PYTHON')
+    if (!use) die('python installed but still not on PATH; set MUSIC_LENS_PYTHON')
   }
   log(`python: ${use}`)
 
@@ -175,10 +199,11 @@ async function cmdSetup(args) {
       '--index-url', 'https://download.pytorch.org/whl/cpu'])
   }
 
-  const wanted = (args.models || 'small,medium').split(',').map(s => s.trim()).filter(Boolean)
+  const wanted = (args.models || 'small').split(',').map(s => s.trim()).filter(Boolean)
   for (const m of wanted) await ensureModel(m)
 
   log('\nready. try:  music-lens analyze "<song.mp3>" --model medium')
+  log('(medium is ~1.5 GB and a lot better on Chinese; download it with: music-lens setup --models medium)')
   return 0
 }
 
@@ -212,7 +237,7 @@ function usage() {
   log(`music-lens ${JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8')).version}
 
   music-lens doctor                        check environment
-  music-lens setup [--models small,medium] install python deps + models
+  music-lens setup [--models small]         install python deps + models
   music-lens analyze <audio>               transcribe + analyse
               [--model medium]             small | medium | large-v3 | path
               [--lang auto]                language code or auto

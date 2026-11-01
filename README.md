@@ -23,11 +23,15 @@ $node = "C:\Users\86173\Documents\deepseek-harness\default-workspace\snowluma\Sn
 & $node .\bin\music-lens.mjs analyze "song.mp3" --model medium
 ```
 
-`setup` 会自己装 python 依赖并从 hf-mirror 下模型：
+`setup` 会自己装 python 依赖并从 hf-mirror 下模型，**默认只下 small（461 MB）**：
 
 ```powershell
-& $node .\bin\music-lens.mjs setup --models small,medium
+& $node .\bin\music-lens.mjs setup              # small，约 500 MB 依赖 + 461 MB 模型
+& $node .\bin\music-lens.mjs setup --models medium   # 中文效果更好，再下 1.46 GB
 ```
+
+跨平台：Windows 用 `winget`，macOS 用 `brew`，Linux 用 `apt-get`；
+都不行时会打印手工安装命令，也可以用 `MUSIC_LENS_PYTHON` 直接指定解释器路径。
 
 模型和缓存默认放 `~/.music-lens`，可用 `MUSIC_LENS_HOME` 覆盖。
 
