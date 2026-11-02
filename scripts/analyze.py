@@ -186,7 +186,10 @@ def main():
         for s in it:
             text = s.text.strip()
             if text:
-                if _CC is not None:
+                # opencc t2s is for Chinese only -- it would mangle Japanese kanji
+                # (選->选, 関係->関系) and is pointless for other scripts.
+                detected = (getattr(info, "language", "") or "").lower()
+                if _CC is not None and ((lang or detected) == "zh"):
                     text = _CC.convert(text)
                 segments.append({"start": round(s.start, 2), "end": round(s.end, 2), "text": text})
                 print(f"      {s.start:7.1f}s  {text}")
