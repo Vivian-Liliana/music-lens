@@ -16,6 +16,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -47,6 +48,35 @@ MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.
 NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 NOTES_ZH = ["C", "升C", "D", "升D", "E", "F", "升F", "G", "升G", "A", "升A", "B"]
 
+# Whisper famously fabricates credits/subtitles when the audio carries no speech
+# (intros, outros, instrumental breaks). These are stock phrases from its training
+# data -- e.g. "作词 李宗盛" is a near-universal Chinese lyric-video credit line.
+HALLUCINATION_PATTERNS = [
+    r"作\s*[詞词]\s*[:：]?\s*\S{2,4}\s*作曲",     # "作词 X 作曲 Y"
+    r"作词曲",                                     # "作词曲 李宗盛"
+    r"[詞词曲]\s*[:：]\s*李宗盛",
+    r"李宗盛",
+    r"字幕\s*(by|BY|由|组|組|提供|制作|製作)",
+    r"中文字幕",
+    r"字幕组",
+    r"优优独播剧场",
+    r"YoYo Television",
+    r"Zither Harp",
+    r"请不吝点赞",
+    r"点赞.{0,4}订阅",
+    r"明镜与点点",
+    r"^\s*谢谢(观看|收看|收听)",
+    r"^\s*Thanks? for watching",
+    r"^\s*Subtitles?\s*by",
+    r"^\s*Amara\.org",
+]
+
+_HALLUCINATION_RE = re.compile("|".join(HALLUCINATION_PATTERNS), re.IGNORECASE)
+
+
+def is_hallucination(text: str) -> bool:
+    return bool(_HALLUCINATION_RE.search(text))
+
 
 def estimate_key(chroma_mean):
     best = (-2.0, None)
@@ -68,6 +98,8 @@ def main():
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--skip-whisper", action="store_true")
     ap.add_argument("--vad", action="store_true", help="enable VAD (good for speech, bad for singing)")
+    ap.add_argument("--keep-hallucinations", action="store_true",
+                    help="keep fabricated credit/subtitle lines instead of dropping them")
     args = ap.parse_args()
 
     src = Path(args.audio).expanduser().resolve()
@@ -131,6 +163,7 @@ def main():
     # ------------------------------------------------------------- transcription
     segments = []
     info = {}
+    dropped = []
     if not args.skip_whisper:
         print(f"[2/6] transcribing with faster-whisper '{args.model}' (lang={args.lang}) ...")
         from faster_whisper import WhisperModel
@@ -170,6 +203,21 @@ def main():
         if len(deduped) != len(segments):
             print(f"      collapsed duplicates: {len(segments)} -> {len(deduped)} lines")
         segments = deduped
+
+        # drop fabricated credits / subtitles (whisper filler on instrumental parts)
+        dropped = []
+        if not args.keep_hallucinations:
+            kept = []
+            for seg in segments:
+                if is_hallucination(seg["text"]):
+                    dropped.append(seg)
+                    print(f"      dropped hallucination @{seg['start']:6.1f}s  {seg['text']}")
+                else:
+                    kept.append(seg)
+            if kept:
+                segments = kept
+            elif dropped:
+                print("      (all segments looked like hallucinations -- keeping them)")
     else:
         print("[2/6] whisper skipped")
 
@@ -253,6 +301,7 @@ def main():
         "vocal_time_ratio": round(sing_ratio, 2),
         "sections": sections,
         "segments_count": len(segments),
+        "dropped_hallucinations": len(dropped),
     }
     with open(out / "05_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
@@ -269,6 +318,9 @@ def main():
     L.append(f"- 动态范围：{lo_d} dB ～ {hi_d} dB（相对最响处）")
     L.append(f"- 人声占比：约 **{sing_ratio*100:.0f}%** 时长检测到人声")
     L.append(f"- 歌词字数：约 {total_lyrics} 字，{len(segments)} 句\n")
+    if dropped:
+        L.append(f"> 已过滤 {len(dropped)} 条疑似幻觉（片头/署名/字幕类）。"
+                 f"想保留请加 `--keep-hallucinations`。\n")
 
     L.append("## 段落结构（按响度自动切分）\n")
     for s in sections:
