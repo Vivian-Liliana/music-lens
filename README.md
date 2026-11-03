@@ -9,7 +9,7 @@
 > 要做视频/图文分享的话，[`docs/发布文案.md`](docs/发布文案.md) 里有标题、简介和口播稿。
 
 ```bash
-npm i -g music-lens        # 或者 git clone 后 npm i -g .
+npm i -g music-lens-cli        # 或者 git clone 后 npm i -g .
 music-lens setup           # 装 python 依赖 + 下模型（约 2 GB）
 music-lens analyze song.mp3
 ```
