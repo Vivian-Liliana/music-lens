@@ -66,6 +66,8 @@ HALLUCINATION_PATTERNS = [
     r"点赞.{0,4}订阅",
     r"明镜与点点",
     r"^\s*谢谢(观看|收看|收听)",
+    r"^\s*感谢(观看|收看|收听)",
+    r"Thank you (so much|very much)?\s*(for )?(watching|listening)",
     r"^\s*Thanks? for watching",
     r"^\s*Subtitles?\s*by",
     r"^\s*Amara\.org",
