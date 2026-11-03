@@ -137,6 +137,16 @@ $base = "C:\Users\86173\Documents\deepseek-harness\default-workspace\music-lens"
 8. **Windows 上 npm 生成的 `music-lens.ps1` 会被执行策略拦住**，敲 `music-lens` 直接报
    `禁止运行脚本`。两个办法：删掉那个 `.ps1`（PowerShell 会回落到 `.cmd`），或者
    `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`。**每次 `npm i -g` 之后都要处理一次。**
+9. **智能应用控制（SAC）会拦掉 torch**：报 `WinError 4551 ... shm.dll`，`separate` 直接废。
+   SAC 没有白名单，也不认自签名证书，绕不开。0.1.7 起支持 `--separator wsl`：
+   Linux 侧的二进制不受 SAC 管，装个 WSL2 就能在**不关 SAC** 的前提下分轨。
+   ```powershell
+   wsl --install -d Ubuntu                    # 管理员执行，装完重启
+   # WSL 里：apt install -y python3-pip ffmpeg && pip install --break-system-packages demucs numpy
+   music-lens separate "song.mp3" --separator wsl
+   ```
+   `--separator auto`（默认）先试 Windows 原生 torch，失败自动回退 WSL；
+   发行版名用 `MUSIC_LENS_WSL_DISTRO` 覆盖（默认 `Ubuntu24.04`）。
 
 ## 还能往上走
 

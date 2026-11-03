@@ -277,13 +277,56 @@ async function cmdSpectrogram(args) {
 
 async function cmdSeparate(args) {
   const audio = args._[0]
-  if (!audio) die('usage: music-lens separate <audio> [--out DIR]')
-  const py = findPython() || die('python not found -- run `music-lens setup`')
-  const outDir = path.resolve(args.out || path.join(path.dirname(path.resolve(audio)), 'stems'))
+  if (!audio) die('usage: music-lens separate <audio> [--out DIR] [--separator native|wsl|auto]')
+
+  const src = path.resolve(audio)
+  if (!fs.existsSync(src)) die(`audio not found: ${src}`)
+  const outDir = path.resolve(args.out || path.join(path.dirname(src), 'stems'))
+  fs.mkdirSync(outDir, { recursive: true })
+
+  const wanted = String(args.separator || 'auto').toLowerCase()
+  const py = findPython()
+
+  // Windows Smart App Control blocks torch's unsigned DLLs. Linux binaries inside
+  // WSL are exempt, so we can fall back there without turning the protection off.
+  function nativeWorks() {
+    return !!py && spawnSync(py, ['-c', 'import torch'], { stdio: 'ignore' }).status === 0
+  }
+  function wslReady() {
+    const r = spawnSync('wsl.exe', ['-l', '-q'], { encoding: 'utf8' })
+    return r.status === 0 && String(r.stdout || '').trim().length > 0
+  }
+
+  let mode = wanted
+  if (mode === 'auto') {
+    if (nativeWorks()) mode = 'native'
+    else if (wslReady()) {
+      mode = 'wsl'
+      log('torch unavailable on Windows (Smart App Control?) -- falling back to WSL')
+    }
+    else die('no usable separator: torch is blocked on Windows and WSL is not available')
+  }
+
+  if (mode === 'wsl') {
+    const distro = process.env.MUSIC_LENS_WSL_DISTRO || 'Ubuntu24.04'
+    const toWsl = (p) => {
+      const abs = path.resolve(p)
+      const m = /^([A-Za-z]):[\\\/](.*)$/.exec(abs)
+      return m ? `/mnt/${m[1].toLowerCase()}/${m[2].replace(/\\/g, '/')}` : abs.replace(/\\/g, '/')
+    }
+    log(`separating in WSL [${distro}] -> ${outDir}`)
+    const st = run('wsl.exe', ['-d', distro, '-u', 'root', '--', 'demucs',
+      '--two-stems=vocals', '-n', args.model || 'htdemucs',
+      '-o', toWsl(outDir), toWsl(src)])
+    if (st === 0) log(`\nvocal stem: ${path.join(outDir, 'htdemucs', path.parse(src).name, 'vocals.wav')}`)
+    return st
+  }
+
+  if (!py) die('python not found -- run `music-lens setup`')
   log(`separating -> ${outDir}`)
   const st = run(py, ['-m', 'demucs', '--two-stems=vocals', '-n', args.model || 'htdemucs',
-    '-o', outDir, path.resolve(audio)])
-  if (st === 0) log(`\nvocal stem: ${path.join(outDir, 'htdemucs', path.parse(audio).name, 'vocals.wav')}`)
+    '-o', outDir, src])
+  if (st === 0) log(`\nvocal stem: ${path.join(outDir, 'htdemucs', path.parse(src).name, 'vocals.wav')}`)
   return st
 }
 
@@ -299,6 +342,8 @@ function usage() {
   music-lens spectrogram <audio>           quick look: spectrum + waveform (ffmpeg only,
               [--size 1600x900]            no python, no models, ~10 seconds)
   music-lens separate <audio>              split vocals / instrumental (demucs)
+              [--separator auto]           auto | native | wsl
+              [--out DIR]                  output directory
 
 Outputs per song: 00_summary.md, 01_lyrics.txt, 02_transcript.json,
 03_features.csv, 04_energy.png, 05_summary.json`)
